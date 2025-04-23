@@ -1,12 +1,10 @@
 
-% Бенчмарк
-% Закомментировать, если нужен обычный запуск
-% benchmark();
-% 
-% return;
+benchmark();
+
+return;
 
 % размерность вектора-аргумента
-dim = 3;
+dim = 2;
 max_generations = 500;
 population_size = 100;
 
@@ -16,7 +14,6 @@ fprintf("Результат собственного решения:");
 res{1}(:,1)
 fprintf("Минимум: %e\n", res{2});
 
-% Решение встроенной функцией
 problem.fitnessfcn = @f1c;
 problem.nvars = dim;
 
@@ -34,7 +31,7 @@ fprintf("Минимум: %e\n", f1c(internal_res));
 % Исследование работы алгоритма
 function benchmark()
 
-    launches_num = 20;
+    launches_num = 10;
 
     % Кол-во в популяции, 
     % вероятность кросс., 
@@ -46,21 +43,21 @@ function benchmark()
         100, 0.5, 0.01, 200, launches_num;
         100, 0.5, 0.001, 200, launches_num];
 
-    cross_prob_test = [
-        100, 0.9, 0.1, 100, launches_num;
-        100, 0.5, 0.1, 100, launches_num;
-        100, 0.1, 0.1, 100, launches_num];
-
-    pop_size_test = [
-        20, 0.9, 0.1, 100, launches_num;
-        100, 0.5, 0.1, 100, launches_num;
-        200, 0.1, 0.1, 100, launches_num];
+    % cross_prob_test = [
+    %     100, 0.9, 0.1, 100, launches_num;
+    %     100, 0.5, 0.1, 100, launches_num;
+    %     100, 0.1, 0.1, 100, launches_num];
+    % 
+    % pop_size_test = [
+    %     20, 0.9, 0.1, 100, launches_num;
+    %     100, 0.5, 0.1, 100, launches_num;
+    %     200, 0.1, 0.1, 100, launches_num];
 
     
     units = {
-        {"Зависимость от вероятности мутаций", mut_prob_test}; 
-        {"Зависимость от вероятности кроссинговера", cross_prob_test}; 
-        {"Зависимость от размера популяции", pop_size_test}};
+        {"Зависимость от вероятности мутаций", mut_prob_test}}; 
+        % {"Зависимость от вероятности кроссинговера", cross_prob_test}; 
+        % {"Зависимость от размера популяции", pop_size_test}};
 
     units_results = cell(length(units), 1);
 
@@ -110,33 +107,31 @@ function benchmark()
     bar(x, y);
     legend("Время решения, с")
 
-
-    figure("Name", "Зависимость погрешности от вероятности скрещивания");
+    figure("Name", "Зависимость погрешности от вероятности мутаций");
     yscale log
-    x = compose("Вероятность скрещивания = %f", cross_prob_test(:, 2));
-    y = units_results{2}(:,1);
+    x = compose("Вероятность мутации = %f", mut_prob_test(:, 3));
+    y = units_results{1}(:,1);
     bar(x, y);
     legend("Погрешность")
 
-    figure("Name", "Зависимость времени решения от вероятности скрещивания");
+    figure("Name", "Зависимость времени решения от вероятности мутаций");
     yscale log
-    x = compose("Вероятность скрещивания = %f", cross_prob_test(:, 2));
-    y = units_results{2}(:,2);
+    x = compose("Вероятность мутации = %f", mut_prob_test(:, 3));
+    y = units_results{1}(:,2);
     bar(x, y);
     legend("Время решения, с")
 
-
-    figure("Name", "Зависимость погрешности от размера популяции");
+    figure("Name", "Зависимость погрешности от вероятности мутаций");
     yscale log
-    x = compose("Размер популяции = %d", pop_size_test(:, 1));
-    y = units_results{3}(:,1);
+    x = compose("Вероятность мутации = %f", mut_prob_test(:, 3));
+    y = units_results{1}(:,1);
     bar(x, y);
     legend("Погрешность")
 
-    figure("Name", "Зависимость времени решения от размера популяции");
+    figure("Name", "Зависимость времени решения от вероятности мутаций");
     yscale log
-    x = compose("Размер популяции = %d", pop_size_test(:, 1));
-    y = units_results{3}(:,2);
+    x = compose("Вероятность мутации = %f", mut_prob_test(:, 3));
+    y = units_results{1}(:,2);
     bar(x, y);
     legend("Время решения, с")
     
