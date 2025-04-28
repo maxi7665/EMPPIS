@@ -6,7 +6,7 @@
 % return;
 
 % размерность вектора-аргумента
-dim = 3;
+dim = 2;
 max_generations = 500;
 population_size = 100;
 
@@ -206,7 +206,7 @@ end
 % Скрещивание
 function pop = crossover(parents, prob)
     len = length(parents);
-    pop = cell(1, 1);
+    pop = cell(0, 1);
 
     for i = 1:len
         p1 = parents{round(rand_range(1, len))};
@@ -214,7 +214,7 @@ function pop = crossover(parents, prob)
 
         if (rand() < prob)
             child = flat_crossover(p1, p2);    
-            pop{length(pop)} = child;
+            pop{length(pop) + 1, 1} = child;
         end
     end
 end

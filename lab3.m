@@ -1,0 +1,744 @@
+
+% [comm, way] = gen_path(10);
+% [comm1] = gen_path(10);
+% 
+% ways = read_matrix2(nodes_count);
+% 
+% % child = subtour_cross(comm, comm1);
+% child = heuristic_cross(comm, comm1, ways);
+% 
+% child_path = parse_path(child);
+% 
+% comm
+% comm1
+% child
+% child_path
+% 
+% return
+
+% opt  = [1,28,6,12,9,26,3,29,5,21,2,20,10,4,15,18,14,17,22,11,19,25,7,23,8,27,16,13,24,1];
+% found = [1,28,12,6,26,29,3,9,5,21,2,20,10,4,15,18,14,17,22,11,19,25,7,23,8,27,16,13,24,1];
+% found = [1, 28, 12, 6, 9, 26, 3, 29, 5, 21, 2, 20, 10, 16, 27, 8, 23, 7, 25, 19, 11, 22, 17, 14, 18, 4, 15, 13, 24, 1];
+% % 
+% coords = read_coords(nodes_count);
+% % ways = read_matrix2(nodes_count);
+% % 
+% % % path_len = path_length(opt, ways);
+% % path_len_found = path_length(found, ways);
+% % 
+% % draw_route(opt, coords);
+% draw_route(found, coords);
+% % 
+% return;
+% child = alternating_cross(comm, comm1);
+% child_path = parse_path(child);
+% 
+% comm
+% comm1
+% child
+% child_path
+% 
+% return
+% way
+% path
+
+% parse_path(comm);
+
+nodes_count = 29;
+
+% ways = read_matrix(nodes_count);
+ways = read_matrix2(nodes_count);
+
+f = @(x) fitness(x, ways);
+heuristic_c = @(p1,p2) heuristic_cross(p1,p2,ways);
+
+% w = fitness(comm, ways);
+% return;
+
+% res = commi_genetic(f, 100, nodes_count, 10000, 0.5, 0.1, @alternating_cross);
+% res = commi_genetic(f, 100, nodes_count, 10000, 0.5, 0.1, @subtour_cross);
+res = commi_genetic(f, 100, nodes_count, 10000, 0.5, 0.1, heuristic_c);
+
+coords = read_coords(nodes_count);
+
+draw_route(parse_path(res{1}), coords);
+
+
+function res = commi_genetic( ...
+    f, ...
+    population_size, ...
+    nodes_count, ...
+    max_steps, ...
+    cross_prob, ...
+    mutation_prob, ...
+    cross)
+
+    population = generate_population( ...
+        population_size, ...
+        nodes_count);
+
+    for i = 1:max_steps
+
+        if (length(population) < population_size)
+            a=1;
+        end
+
+        parents = reproduction(population, f);  
+
+        % Сохраняем лучшую особь
+        best = best_individ(f, population);
+        best_ind = population{best};
+
+        if (best > 1)
+            start = population(1:best-1);
+        else
+            start = cell(0,1);
+        end
+
+        if (best < population_size)
+            ending = population(best+1:population_size);
+        else
+            ending = cell(0,1);
+        end
+
+        without_best_pop = [start;ending];
+
+        % рождение и мутация детей
+        children = crossover(parents, cross_prob, cross);
+        children = mutation(children, mutation_prob);
+    
+        % редукция
+        new_population = [without_best_pop; children];              
+
+        population = reduction(f, new_population, population_size - 1);
+        population = [{best_ind}; population];
+
+        best = best_individ(f, population);
+        best_ind = population{best};        
+
+        fprintf("Шаг %d: лучший маршрут:\n%s\n%s\n", i, mat2str(best_ind), mat2str(parse_path(best_ind)));        
+        fprintf("Длина маршрута: %d\n", f(best_ind));
+    end
+
+    best = best_individ(f, population);
+    res = {population{best}; f(population{best})};
+end
+
+function draw_route(path, coords)
+    x = zeros(1, length(path));
+    y = zeros(1, length(path));
+
+    for i = 1:length(path)
+        node = path(i);
+        x(i) = coords(node, 1);
+        y(i) = coords(node, 2);
+    end
+
+    figure;
+    plot(x, y, '-x');
+
+end
+
+function num = best_individ(f, pop)
+
+    min_val = intmax();
+    num = 0;
+
+    for i = 1:length(pop)
+        val = f(pop{i});
+        if (val < min_val)
+            min_val = val;
+            num = i;
+        end
+    end
+end
+
+% Мутация
+function mutated_pop = mutation(pop, prob)
+
+    for i = 1:length(pop)
+        if (rand() < prob)
+            val = pop{i};
+
+            while true
+            
+                pos1 = 0;
+                pos2 = 0;
+    
+                while (pos1 == pos2)
+                    pos1 = round(rand_range(1, length(val)));
+                    pos2 = round(rand_range(1, length(val)));
+                end          
+    
+                tmp = val(pos1);
+                val(pos1) = val(pos2);
+                val(pos2) = tmp;
+    
+                if (~has_loop(val))
+                    break;
+                end
+            end
+            
+            pop{i} = val;
+        end
+    end
+
+    mutated_pop = pop;
+end
+
+function reducted_pop = reduction2(pop, remain)
+    reducted_pop = cell(remain,1);
+    indeces = randperm(length(pop), remain);
+    for i = 1:remain
+        reducted_pop{i} = pop{indeces(i)};
+    end
+end
+
+% Редукция
+function reducted_pop = reduction(f, pop, len)
+    valind = configureDictionary("double", "cell");
+    cnt = 0;
+
+    arr = {{}};
+    
+    for i = 1:length(pop)
+        val = f(pop{i});       
+        if cnt > 0
+            if (valind.isKey(val))
+                arr = valind.lookup(val);
+            else
+                arr = {{}};
+            end             
+        else
+            arr = {{}};
+        end
+
+        subarr = arr{1};
+        subarr{length(subarr) + 1} = pop{i}; 
+        arr{1} = subarr;
+
+        % if (cnt == 0)
+        %     val2ind = dictionary(val, arr);
+        % end
+        valind = valind.insert(val, arr);       
+        cnt = cnt + 1;
+    end
+
+    reducted_pop = {};    
+
+    while (length(reducted_pop) < len & ~isempty(valind.keys()))
+        minval = min(valind.keys);
+        arr = valind.lookup(minval);
+
+        unique = configureDictionary("double", "double");
+
+        for j = 1:length(arr{1})
+
+            ind = arr{1}{j};
+
+            % is_member = ismember([ind], cell2mat(reducted_pop));
+
+            if (~unique.isKey(ind))
+                reducted_pop = [reducted_pop; ind];
+                unique = unique.insert(ind, 1);
+            end
+        end
+        valind = valind.remove(minval);
+    end
+end
+
+
+% Репродукция
+function intermediate_population = reproduction(population, f) 
+    
+    pop_size = length(population);
+
+    % Оператор репродукции
+    intermediate_population = cell(pop_size, 1);
+
+    individ_values = zeros(pop_size, 1);
+
+    % сумма всех значений и значение для каждой особи
+    for i = 1:pop_size
+        val = f(population{i});
+        individ_values(i) = val;
+    end
+
+    values_sum = sum(individ_values);
+
+    % все особи одинаковы
+    if values_sum == 0
+        intermediate_population = population;
+        return
+    end
+
+    potentials = zeros(pop_size, 1); 
+
+    % подсчет потенциала для каждой особи
+    % потенциалы отрицательны, т.к. ищем минимум
+    for i = 1:length(individ_values)
+        val = individ_values(i);
+        prob = -(val / values_sum);
+        potentials(i) = prob;
+    end
+
+    min_potential = min(potentials);
+
+    % сдвигаем потенциалы в положительную часть
+    for i = 1:length(individ_values)
+        potentials(i) = potentials(i) - min_potential;
+    end
+
+    sum_potentials = sum(potentials);
+
+     % выбор такого же кол-ва особей
+    for i = 1:length(population)
+
+         % крутите барабан
+        shot = rand_range(0, sum_potentials);
+        individ_num = 0;
+        tmp_sum = 0;
+
+        % определяем куда попали барабаном
+        for j = 1:length(population)
+            individ_num = j;
+            tmp_sum = tmp_sum + potentials(individ_num);
+            if (tmp_sum >= shot)
+                break
+            end
+        end
+
+        % добавляем выбранную особь в промежуточную популяцию
+        individ = population{individ_num};
+        intermediate_population{i} = individ;                  
+    end
+end
+
+
+% Скрещивание
+function pop = crossover(parents, prob, cros)
+    len = length(parents);
+    pop = cell(0, 1);
+
+    for i = 1:len
+        p1 = parents{round(rand_range(1, len))};
+        p2 = parents{round(rand_range(1, len))};
+
+        if (rand() < prob)
+            child = cros(p1, p2);    
+            pop{length(pop) + 1, 1} = child;
+        end
+    end
+end
+
+function child = alternating_cross(p1, p2)
+    while (true)
+        child = zeros(1, length(p1));
+
+        is_first = true;
+
+        for i = 1:length(p1)            
+            if (rand() < 0.5)
+                parent = p1;
+            else
+                parent = p2;
+            end       
+    
+            % Выбираем из родителя ребро
+            node = parent(i);
+            % node = 0;
+    
+            % Если уже есть такое, выбираем другое по возможности
+            while (node == 0 || node == i || any(ismember(child, node)))
+                node = parent(round(rand_range(1, length(parent))));
+                child(i) = node;
+                if (all(ismember(child, parent)))
+                    break;
+                end
+                child(i) = 0;
+            end
+    
+            child(i) = node;
+            is_first = ~is_first;
+        end
+
+        if (has_loop(child) == false)
+            break;
+        end
+    end
+end
+
+% кроссовер обмен подтурами
+function child = subtour_cross(p1, p2)
+    len = length(p1);    
+
+    while true
+
+        child = zeros(1, len);
+        child_len = 0;
+    
+        while true
+    
+            if (len - child_len < 1)
+                break;
+            end
+    
+            subtour_from = child_len + 1;
+            subtour_len = round(rand_range(1, len - child_len));
+    
+            if (rand() < 0.5)
+                parent = p1;
+            else
+                parent = p2;
+            end 
+    
+            subtour = parent(subtour_from:subtour_from + subtour_len - 1);
+    
+            is_loop = false;
+    
+            for j = 1:length(subtour)
+                node = subtour(j);
+
+                % if (has_loop(child))
+                if (any(ismember(child, node)))
+                    is_loop = true;
+                    break;
+                end
+
+                child(j + subtour_from - 1) = node;                        
+                child_len = child_len + 1;
+            end   
+
+            if (is_loop || child_len >= len)
+                break;
+            end
+        end
+
+        if (is_loop)
+            vars_dict = configureDictionary("double", "double");
+
+            % Все возможные вершины добавляем в множество
+            for i = 1:len
+                vars_dict = vars_dict.insert(i, 1);
+            end
+
+            % Удаляем те что уже есть
+            for i = 1:child_len
+                if (vars_dict.isKey(child(i)))
+                    vars_dict = vars_dict.remove(child(i));
+                end
+            end
+
+            % Рандомно добавляем те что есть
+            for j = child_len + 1:len
+                keys = vars_dict.keys();
+                node = keys(randperm(len - child_len, 1));
+                child(j) = node;
+                vars_dict = vars_dict.remove(node);
+                child_len = child_len + 1;
+            end
+        end
+
+        if (~has_loop(child))
+            break
+        end
+    end
+end
+
+% кроссовер эвристический
+function child = heuristic_cross(p1, p2, ways)
+    len = length(p1);
+
+    while true
+        child = zeros(1, len);
+    
+        source = randperm(len, 1);
+    
+        is_loop = false;
+    
+        for i = 1:len
+            dest1 = p1(source);
+            dest2 = p2(source);
+    
+            way1 = ways(source, dest1);
+            way2 = ways(source, dest2);
+    
+            if (way1 < way2)
+                dest = dest1;
+            else
+                dest = dest2;
+            end
+
+            res_dest = dest;
+    
+            while (any(ismember(child, res_dest)))
+                % is_loop = true;
+                res_dest = randperm(len, 1);
+                % break;
+            end
+    
+            child(source) = res_dest;
+            source = res_dest;
+        end
+
+        % Рандомно выставляем нули
+        for i = 1:len
+            if (child(i) == 0)
+                dest = randperm(len, 1);
+                while (any(ismember(child, dest)))
+                    dest = randperm(len, 1);
+                end    
+                child(i) = dest;
+            end
+        end
+
+        is_loop = has_loop(child);
+        % has_null = any(ismember(child, 0));
+
+        if (~is_loop)
+            break;
+        end
+
+        % if (is_loop)
+        %     vars_dict = configureDictionary("double", "double");
+        % 
+        %     % Все возможные вершины добавляем в множество
+        %     for i = 1:len
+        %         vars_dict = vars_dict.insert(i, 1);
+        %     end
+        % 
+        %     % Удаляем те что уже есть
+        %     for i = 1:len
+        %         if (vars_dict.isKey(child(i)))
+        %             vars_dict = vars_dict.remove(child(i));
+        %         end
+        %     end
+        % 
+        %     % Рандомно добавляем те что есть
+        %     for i = 1:len
+        %         if (child(i) == 0)
+        %             keys = vars_dict.keys();
+        %             node = keys(randperm(length(keys), 1));
+        %             child(i) = node;
+        %             vars_dict = vars_dict.remove(node);
+        %         end
+        %     end
+        % end
+        % 
+        % if (~has_loop(child))
+        %     break
+        % end
+
+    end
+end
+
+% случайное число в диапазоне
+function ret = rand_range(from, to)
+    ret = (to-from) .* rand() + from;
+end
+
+
+% parsed = parse_path(path);
+% parsed
+
+% Чтение файла координат
+function coords = read_coords(s)
+    % читаем файл в вектор
+    coords = zeros(s, 2);
+    fileID = fopen('bayg_coords.txt', 'r');
+    formatSpec = '%f';   
+    a = fscanf(fileID, formatSpec);
+
+    for i = 1:s
+        coords(i, 1) = a((i - 1) * 3 + 2); 
+        coords(i, 2) = a((i - 1) * 3 + 3); 
+    end
+end
+
+% Разбор транспонированной матрицы из файла
+function matrix = read_matrix(s)
+
+    % читаем файл в вектор
+    transposed_len = s - 1;
+    m = zeros(transposed_len);
+    fileID = fopen('bayg_t_matrix.txt', 'r');
+    formatSpec = '%f';   
+    a = fscanf(fileID, formatSpec);
+
+    % распределеляем вектор в матрицу
+    offset = 0;
+    
+    for i = 1:transposed_len
+        line_offset = i - 1;
+        line_len = transposed_len - line_offset;        
+        line = a(offset + 1 : offset + line_len);
+        m(i, 1:line_len) = line; 
+        offset = offset + line_len;
+    end
+
+    %  транспонируем и перемещаем строки местами
+    % t = transpose(m);
+
+    t = m;
+
+    for i = 1:transposed_len
+        m(:, i) = t(:, transposed_len - i + 1);
+    end
+
+    matrix = zeros(s);
+
+    %  итоговая матрица: заполняем верхнюю половину
+    %  и выставляем нижнюю
+    matrix(1:s-1,2:s) = m;
+
+    for i = 1:s
+        for j = 1:s
+            matrix(j, i) = matrix(i, j);
+        end
+    end
+end
+
+% Разбор транспонированной матрицы из файла
+function matrix = read_matrix2(s)
+
+    % читаем файл в вектор
+    transposed_len = s - 1;
+    m = zeros(s);
+    fileID = fopen('bayg_t_matrix2.txt', 'r');
+    formatSpec = '%f';   
+    a = fscanf(fileID, formatSpec);
+
+    % распределеляем вектор в матрицу
+    offset = 0;
+    
+    for i = 1:transposed_len
+        line_offset = i - 1;
+        line_len = transposed_len - line_offset;        
+        line = a(offset + 1 : offset + line_len);
+        m(i, i+1:s) = line; 
+        offset = offset + line_len;
+    end
+
+    %  транспонируем и перемещаем строки местами
+    % t = transpose(m);
+
+    % t = m;
+    % 
+    % for i = 1:transposed_len
+    %     m(:, i) = t(:, transposed_len - i + 1);
+    % end
+
+    matrix = m;
+
+    %  итоговая матрица: заполняем верхнюю половину
+    %  и выставляем нижнюю
+    % matrix(1:s-1,2:s) = m;
+
+    for i = 1:s
+        for j = 1:s
+            matrix(j, i) = matrix(i, j);
+        end
+    end
+end
+
+% Фитнесс-функция: длина пути
+function way_length = fitness(comm_path, way_matrix)
+    way_length = path_length(parse_path(comm_path), way_matrix);
+end
+
+
+% Найти длину пути
+function way_length = path_length(path, way_matrix)  
+    way_length = 0;
+    prev_node = 0;
+    for i = 1:length(path)
+        node = path(i);
+        if (prev_node > 0)
+            way_length = way_length + way_matrix(prev_node, node);
+        end
+        prev_node = node;
+    end
+end
+
+% Генерация начальной популяции 
+function individs = generate_population(len, ind_size)
+    individs = cell(len, 1);    
+    for i = 1:len
+        [comm_path] = gen_path(ind_size);
+        individs{i} = comm_path;
+    end
+end
+
+% Генерация вектора соседей и пути
+function [comm_path, way] = gen_path(size)
+    % Генерируем путь, всегда оканчивающийся на 1
+    way = randperm(size - 1) + 1;
+    way = [way, 1];
+
+    % По созданному пути генерируем соседей
+    comm_path = zeros(1, size);
+    source = 1;
+    for i = 1:size
+        dest = way(i);
+        comm_path(source) = dest;
+        source = dest;
+    end
+end
+
+% Преобразование вектора соседей в пути
+function way = parse_path(comm_path)
+    len = size(comm_path, 2);
+    way = zeros(1, len);
+
+    node = 1;
+
+    for i = 1:len
+        if (ismember(node, way))
+            way = false;
+            return
+        end
+
+        way(i) = node; 
+
+        if (mod(node, 1) ~= 0)
+            a=1;
+        end
+
+        node = comm_path(node);        
+    end
+
+    way = [way, node];
+end
+
+% Проверка есть ли  замкнутый цикл 
+function is_loop = has_loop(comm_path)
+    len = size(comm_path, 2);
+    way = zeros(1, len);
+
+    node = 1;
+
+    for i = 1:len
+        node = comm_path(node);                
+
+        if (node == 0)
+            is_loop = false;
+            return
+        end
+
+        if (node == 1 && i < len)
+            is_loop = true;
+            return
+        end  
+
+        if (any(ismember(node, way)))
+            is_loop = true;
+            return
+        end 
+
+        way(i) = node; 
+    end
+
+    way = [way, node];
+
+    is_loop = false;
+end
