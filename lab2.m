@@ -219,7 +219,7 @@ function pop = crossover(parents, prob)
     end
 end
 
-% Плосский кроссовер
+% Плоский кроссовер
 function child = flat_crossover(p1, p2)
     dim = length(p1);
     child = zeros(dim);
